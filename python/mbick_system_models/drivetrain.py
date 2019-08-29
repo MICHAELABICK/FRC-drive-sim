@@ -1,5 +1,16 @@
 import math
 
+from scipy import constants
+from scipy.integrate import solve_ivp
+import numpy as np
+
+
+def main():
+    cim = MotorFactory.create('cim')
+    dt = create_drivetrain(130, cim, 4, 4, 0)
+
+    print(dt.forward_sim(10, 0))
+
 
 def create_drivetrain(
     mass,
@@ -7,17 +18,31 @@ def create_drivetrain(
     num_motors,
     gear_ratio,
     wheel_diameter,
-    resistance_bat
+    resistance_bat,
+    current_limit=None
 ):
-    pass
+    wheel_friction_coef = 1.1
+
     # combined_motor = Motor(
     #         num_motors * motor.torque_const,
     #         motor.back_emf_const,
+    combined_motor = motor
+
+    mass_kg = mass / 2.2
+    wheel_diameter_meters = wheel_diameter * 2.54 / 100
+
+    return Drivetrain(
+            mass_kg,
+            combined_motor,
+            gear_ratio,
+            wheel_diameter_meters,
+            resistance_bat,
+            wheel_friction_coef=wheel_friction_coef,
+            current_limit=current_limit
+        )
 
 
 class Drivetrain:
-    g = 9.81  # m/s
-
     def __init__(
         self,
         mass,
@@ -61,9 +86,28 @@ class Drivetrain:
 
     def _update_slip_force(self):
         if self.wheel_friction_coef is not None:
-            self._slip_force = self.mass * self.g * self.wheel_friction_coef
+            self._slip_force = self.mass * constants.g \
+                * self.wheel_friction_coef
         else:
             self._slip_force = None
+
+    def forward_sim(self, sim_time, init_velocity):
+        """
+        Returns the simulated state of a forward moving drivetrain
+
+        :param sim_time: The time to simulate for
+        :param velocity_init: The initial velocity in m/s
+        :returns: A matrix with the simulated velocities in the first row
+            and the simulated positions in the second one
+        """
+
+        solution = solve_ivp(
+                fun=self.forward_ode,
+                t_span=(0.0, sim_time),
+                y0=np.array([init_velocity, 0.0])
+            )
+
+        return solution
 
     def forward_ode(self, t, y):
         """
@@ -131,3 +175,7 @@ class Motor:
         self.back_emf_const = back_emf_const
         self.resistance = resistance
         self.impedance = impedance
+
+
+if __name__ == "__main__":
+    main()
