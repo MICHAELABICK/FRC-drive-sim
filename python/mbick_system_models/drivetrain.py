@@ -78,43 +78,6 @@ def plot_simulation(sim, axes=None, max_feet=None):
     return axes
 
 
-def create_drivetrain(
-    mass,
-    motor,
-    num_motors,
-    gear_ratio,
-    wheel_diameter,
-    resistance_bat,
-    current_limit=None
-):
-    voltage_bat = 12
-    wheel_friction_coef = 1.1
-
-    # only have to adjust resistance and impedance,
-    # based on the equivalent values of those components
-    # in parallel
-    combined_motor = Motor(
-            motor.torque_const,
-            motor.back_emf_const,
-            motor.resistance / num_motors,
-            motor.impedance / num_motors
-        )
-
-    mass_kg = mass / 2.2
-    wheel_diameter_meters = wheel_diameter * 2.54 / 100
-
-    return Drivetrain(
-            mass_kg,
-            combined_motor,
-            gear_ratio,
-            wheel_diameter_meters,
-            voltage_bat,
-            resistance_bat,
-            wheel_friction_coef=wheel_friction_coef,
-            current_limit=current_limit
-        )
-
-
 class Drivetrain:
     def __init__(
         self,
@@ -255,6 +218,19 @@ class Motor:
         self.resistance = resistance
         self.impedance = impedance
 
+    def combine(self, num_motors):
+        motor = self
+
+        # only have to adjust resistance and impedance,
+        # based on the equivalent values of those components
+        # in parallel
+        return Motor(
+                motor.torque_const,
+                motor.back_emf_const,
+                motor.resistance / num_motors,
+                motor.impedance / num_motors
+            )
+
 
 Simulation = namedtuple('Simulation', 'time, position, velocity')
 
@@ -291,6 +267,8 @@ class DefaultDrivetrainFactory:
     cim = MotorFactory.create('cim')
     num_motors = 4
     wheel_diameter = 4  # in
+    voltage_bat = 12
+    wheel_friction_coef = 1.1
 
     fast_gear = 10
     slow_gear = 13
@@ -298,7 +276,13 @@ class DefaultDrivetrainFactory:
     light_mass = 80  # lbs
 
     @classmethod
-    def create(cls, heavy, fast, resistance_bat=None):
+    def create(cls, heavy, fast, resistance_bat=None, current_limit=None):
+        motor = cls.cim
+        num_motors = cls.num_motors
+        wheel_diameter = cls.wheel_diameter
+        voltage_bat = cls.voltage_bat
+        wheel_friction_coef = cls.wheel_friction_coef
+
         if heavy:
             mass = cls.heavy_mass
         else:
@@ -309,13 +293,18 @@ class DefaultDrivetrainFactory:
         else:
             gear_ratio = cls.slow_gear
 
-        return create_drivetrain(
-                mass=mass,
-                motor=cls.cim,
-                num_motors=cls.num_motors,
-                gear_ratio=gear_ratio,
-                wheel_diameter=cls.wheel_diameter,
-                resistance_bat=resistance_bat
+        mass_kg = mass / 2.2
+        wheel_diameter_meters = wheel_diameter * 2.54 / 100
+
+        return Drivetrain(
+                mass_kg,
+                motor.combine(num_motors),
+                gear_ratio,
+                wheel_diameter_meters,
+                voltage_bat,
+                resistance_bat=resistance_bat,
+                wheel_friction_coef=wheel_friction_coef,
+                current_limit=current_limit
             )
 
 
