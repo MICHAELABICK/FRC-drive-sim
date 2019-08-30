@@ -1,45 +1,81 @@
 import math
+from collections import namedtuple
 
 from scipy import constants
 from scipy.integrate import solve_ivp
 import numpy as np
+import matplotlib.pyplot as plt
+
+MAX_FEET = 30
 
 
 def main():
-    cim = MotorFactory.create('cim')
-    dt = create_drivetrain(130, cim, 4, 4, 0)
-
-    print(dt.forward_sim(10, 0))
+    # plot_drivetrain_combinations()
+    plot_heavy_drivetrains()
 
 
-def create_drivetrain(
-    mass,
-    motor,
-    num_motors,
-    gear_ratio,
-    wheel_diameter,
-    resistance_bat,
-    current_limit=None
-):
-    wheel_friction_coef = 1.1
-
-    # combined_motor = Motor(
-    #         num_motors * motor.torque_const,
-    #         motor.back_emf_const,
-    combined_motor = motor
-
-    mass_kg = mass / 2.2
-    wheel_diameter_meters = wheel_diameter * 2.54 / 100
-
-    return Drivetrain(
-            mass_kg,
-            combined_motor,
-            gear_ratio,
-            wheel_diameter_meters,
-            resistance_bat,
-            wheel_friction_coef=wheel_friction_coef,
-            current_limit=current_limit
+def plot_heavy_drivetrains():
+    plot_drivetrains(
+            [
+                DefaultDrivetrainFactory.create(heavy=True, fast=True),
+                DefaultDrivetrainFactory.create(heavy=True, fast=False),
+            ],
+            max_feet=MAX_FEET
         )
+
+
+def plot_drivetrain_combinations():
+    plot_drivetrains(
+            [
+                DefaultDrivetrainFactory.create(heavy=True, fast=True),
+                DefaultDrivetrainFactory.create(heavy=False, fast=True),
+                DefaultDrivetrainFactory.create(heavy=True, fast=False),
+                DefaultDrivetrainFactory.create(heavy=False, fast=False),
+            ],
+            max_feet=MAX_FEET
+        )
+
+
+def plot_drivetrains(drivetrains, max_feet=None):
+    axes = None
+    labels = []
+    for dt in drivetrains:
+        sim = dt.forward_sim(sim_time=10, init_velocity=0)
+        axes = plot_simulation(sim, axes=axes, max_feet=max_feet)
+
+        labels.append(dt.description)
+
+    axes[0].set_title('Drivetrain Characterization')
+    axes[0].set_ylabel('Position (ft)')
+
+    axes[1].set_xlabel('Time (s)')
+    axes[1].set_ylabel('Velocity (ft/s)')
+
+    plt.legend(labels)
+
+    plt.show()
+
+
+def plot_simulation(sim, axes=None, max_feet=None):
+    if axes is None:
+        fig, axes = plt.subplots(2, 1, sharex=True)
+
+    time = sim.time
+    position_ft = sim.position * 3.28084
+    velocity_fps = sim.velocity * 3.28084
+
+    if max_feet is not None:
+        for index, p in enumerate(position_ft):
+            if p >= max_feet:
+                time = time[:index + 1]
+                position_ft = position_ft[:index + 1]
+                velocity_fps = velocity_fps[:index + 1]
+                break
+
+    axes[0].plot(time, position_ft)
+    axes[1].plot(time, velocity_fps)
+
+    return axes
 
 
 class Drivetrain:
@@ -50,17 +86,19 @@ class Drivetrain:
         gear_ratio,
         wheel_diameter,
         voltage_bat,
-        resistance_bat,
+        resistance_bat=None,
         wheel_friction_coef=None,
         current_limit=None
     ):
+        if resistance_bat is None:
+            resistance_bat = 0
 
         self._mass = mass
         self.motor = motor
         self.gear_ratio = gear_ratio
         self.wheel_radius = wheel_diameter
         self.voltage_bat = voltage_bat
-        self.resistance_bat - resistance_bat
+        self.resistance_bat = resistance_bat
         self.current_limit = current_limit
         self._wheel_friction_coef = wheel_friction_coef
 
@@ -84,6 +122,25 @@ class Drivetrain:
         self._wheel_friction_coef = wheel_friction_coef
         self._update_slip_force()
 
+    @property
+    def description(self):
+        base = "{0:.1f} ft/s, {1:.0f} lbs".format(
+                self.frictionless_max_velocity * 3.28084, self.mass * 2.2)
+
+        if self.current_limit is not None:
+            return "{0}, {1} A limit".format(base, self.current_limit)
+
+        return base
+
+    @property
+    def frictionless_max_velocity(self):
+        """
+        :returns: The maximum achievable robot velocity (100% efficiency)
+        """
+
+        return self.voltage_bat / self.motor.back_emf_const / self.gear_ratio \
+            * self.wheel_radius
+
     def _update_slip_force(self):
         if self.wheel_friction_coef is not None:
             self._slip_force = self.mass * constants.g \
@@ -91,7 +148,8 @@ class Drivetrain:
         else:
             self._slip_force = None
 
-    def forward_sim(self, sim_time, init_velocity):
+    def forward_sim(
+            self, sim_time=None, init_velocity=None, minimum_steps_num=None):
         """
         Returns the simulated state of a forward moving drivetrain
 
@@ -101,13 +159,25 @@ class Drivetrain:
             and the simulated positions in the second one
         """
 
+        if sim_time is None:
+            sim_time = 10
+        if init_velocity is None:
+            init_velocity = 0
+        if minimum_steps_num is None:
+            minimum_steps_num = 100
+
         solution = solve_ivp(
                 fun=self.forward_ode,
                 t_span=(0.0, sim_time),
-                y0=np.array([init_velocity, 0.0])
+                y0=np.array([init_velocity, 0.0]),
+                max_step=sim_time / minimum_steps_num
             )
 
-        return solution
+        return Simulation(
+                time=solution['t'],
+                position=solution['y'][1],
+                velocity=solution['y'][0]
+            )
 
     def forward_ode(self, t, y):
         """
@@ -120,7 +190,7 @@ class Drivetrain:
 
         (velocity, position) = y
 
-        omega_motor = velocity / self.wheel_radius  # rad/s
+        omega_motor = velocity / self.wheel_radius * self.gear_ratio  # rad/s
 
         # TODO: include motor impedance effects
         motor_current = self._motor_current(omega_motor, 0)
@@ -139,6 +209,30 @@ class Drivetrain:
                 - (self.motor.impedance * motor_current_dot)
                 - (self.motor.back_emf_const * omega_motor)) \
                 / (self.resistance_bat + self.motor.resistance)
+
+
+class Motor:
+    def __init__(self, torque_const, back_emf_const, resistance, impedance):
+        self.torque_const = torque_const
+        self.back_emf_const = back_emf_const
+        self.resistance = resistance
+        self.impedance = impedance
+
+    def combine(self, num_motors):
+        motor = self
+
+        # only have to adjust resistance and impedance,
+        # based on the equivalent values of those components
+        # in parallel
+        return Motor(
+                motor.torque_const,
+                motor.back_emf_const,
+                motor.resistance / num_motors,
+                motor.impedance / num_motors
+            )
+
+
+Simulation = namedtuple('Simulation', 'time, position, velocity')
 
 
 class MotorFactory:
@@ -169,12 +263,49 @@ class MotorFactory:
                 torque_const, back_emf_const, resistance, specs['impedance'])
 
 
-class Motor:
-    def __init__(self, torque_const, back_emf_const, resistance, impedance):
-        self.torque_const = torque_const
-        self.back_emf_const = back_emf_const
-        self.resistance = resistance
-        self.impedance = impedance
+class DefaultDrivetrainFactory:
+    cim = MotorFactory.create('cim')
+    num_motors = 4
+    wheel_diameter = 4  # in
+    voltage_bat = 12
+    wheel_friction_coef = 1.1
+
+    fast_gear = 10
+    slow_gear = 13
+    heavy_mass = 130  # lbs
+    light_mass = 80  # lbs
+
+    @classmethod
+    def create(cls, heavy, fast, resistance_bat=None, current_limit=None):
+        motor = cls.cim
+        num_motors = cls.num_motors
+        wheel_diameter = cls.wheel_diameter
+        voltage_bat = cls.voltage_bat
+        wheel_friction_coef = cls.wheel_friction_coef
+
+        if heavy:
+            mass = cls.heavy_mass
+        else:
+            mass = cls.light_mass
+
+        if fast:
+            gear_ratio = cls.fast_gear
+        else:
+            gear_ratio = cls.slow_gear
+
+        mass_kg = mass / 2.2
+        wheel_diameter_meters = wheel_diameter * 2.54 / 100
+
+        return Drivetrain(
+                mass_kg,
+                motor.combine(num_motors),
+                gear_ratio,
+                wheel_diameter_meters,
+                voltage_bat,
+                resistance_bat=resistance_bat,
+                wheel_friction_coef=wheel_friction_coef,
+                current_limit=current_limit
+            )
 
 
 if __name__ == "__main__":
