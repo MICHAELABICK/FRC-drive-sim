@@ -6,12 +6,14 @@ from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
 
-MAX_FEET = 30
+MAX_DISTANCE = 30  # ft
+CURRENT_LIMIT = 200  # amps
 
 
 def main():
     # plot_drivetrain_combinations()
-    plot_heavy_drivetrains()
+    # plot_heavy_drivetrains()
+    plot_current_limited_drivetrain()
 
 
 def plot_heavy_drivetrains():
@@ -20,7 +22,7 @@ def plot_heavy_drivetrains():
                 DefaultDrivetrainFactory.create(heavy=True, fast=True),
                 DefaultDrivetrainFactory.create(heavy=True, fast=False),
             ],
-            max_feet=MAX_FEET
+            max_feet=MAX_DISTANCE
         )
 
 
@@ -32,7 +34,23 @@ def plot_drivetrain_combinations():
                 DefaultDrivetrainFactory.create(heavy=True, fast=False),
                 DefaultDrivetrainFactory.create(heavy=False, fast=False),
             ],
-            max_feet=MAX_FEET
+            max_feet=MAX_DISTANCE
+        )
+
+
+def plot_current_limited_drivetrain():
+    plot_drivetrains(
+            [
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=True, current_limit=False),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=True, current_limit=CURRENT_LIMIT),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=False, current_limit=False),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=False, current_limit=CURRENT_LIMIT),
+            ],
+            max_feet=MAX_DISTANCE
         )
 
 
@@ -127,7 +145,7 @@ class Drivetrain:
         base = "{0:.1f} ft/s, {1:.0f} lbs".format(
                 self.frictionless_max_velocity * 3.28084, self.mass * 2.2)
 
-        if self.current_limit is not None:
+        if self.current_limit:
             return "{0}, {1} A limit".format(base, self.current_limit)
 
         return base
@@ -194,11 +212,11 @@ class Drivetrain:
 
         # TODO: include motor impedance effects
         motor_current = self._motor_current(omega_motor, 0)
-        if self.current_limit is not None:
+        if self.current_limit:
             motor_current = min((motor_current, self.current_limit))
 
-        force = self._motor_current(omega_motor, 0) * \
-            self.motor.torque_const * self.gear_ratio / self.wheel_radius
+        force = motor_current * self.motor.torque_const * self.gear_ratio \
+            / self.wheel_radius
         if self._slip_force is not None:
             force = min((force, self._slip_force))
 
