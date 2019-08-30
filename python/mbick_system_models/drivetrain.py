@@ -6,12 +6,14 @@ from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
 
-MAX_FEET = 30
+MAX_DISTANCE = 30  # ft
 
 
 def main():
-    # plot_drivetrain_combinations()
-    plot_heavy_drivetrains()
+    # plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
+    # plot_drivetrain_combinations(current_limit=400)
+    # plot_heavy_drivetrains()
+    plot_current_limited_drivetrain(200)
 
 
 def plot_heavy_drivetrains():
@@ -20,19 +22,51 @@ def plot_heavy_drivetrains():
                 DefaultDrivetrainFactory.create(heavy=True, fast=True),
                 DefaultDrivetrainFactory.create(heavy=True, fast=False),
             ],
-            max_feet=MAX_FEET
+            max_feet=MAX_DISTANCE
         )
 
 
-def plot_drivetrain_combinations():
+def plot_drivetrain_combinations(resistance_bat=None, current_limit=None):
     plot_drivetrains(
             [
-                DefaultDrivetrainFactory.create(heavy=True, fast=True),
-                DefaultDrivetrainFactory.create(heavy=False, fast=True),
-                DefaultDrivetrainFactory.create(heavy=True, fast=False),
-                DefaultDrivetrainFactory.create(heavy=False, fast=False),
+                DefaultDrivetrainFactory.create(
+                    heavy=True,
+                    fast=True,
+                    resistance_bat=resistance_bat,
+                    current_limit=current_limit),
+                DefaultDrivetrainFactory.create(
+                    heavy=False,
+                    fast=True,
+                    resistance_bat=resistance_bat,
+                    current_limit=current_limit),
+                DefaultDrivetrainFactory.create(
+                    heavy=True,
+                    fast=False,
+                    resistance_bat=resistance_bat,
+                    current_limit=current_limit),
+                DefaultDrivetrainFactory.create(
+                    heavy=False,
+                    fast=False,
+                    resistance_bat=resistance_bat,
+                    current_limit=current_limit),
             ],
-            max_feet=MAX_FEET
+            max_feet=MAX_DISTANCE
+        )
+
+
+def plot_current_limited_drivetrain(current_limit):
+    plot_drivetrains(
+            [
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=True, current_limit=False),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=True, current_limit=current_limit),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=False, current_limit=False),
+                DefaultDrivetrainFactory.create(
+                    heavy=True, fast=False, current_limit=current_limit),
+            ],
+            max_feet=MAX_DISTANCE
         )
 
 
@@ -43,7 +77,7 @@ def plot_drivetrains(drivetrains, max_feet=None):
         sim = dt.forward_sim(sim_time=10, init_velocity=0)
         axes = plot_simulation(sim, axes=axes, max_feet=max_feet)
 
-        labels.append(dt.description)
+        labels.append(dt.latex_description)
 
     axes[0].set_title('Drivetrain Characterization')
     axes[0].set_ylabel('Position (ft)')
@@ -52,6 +86,8 @@ def plot_drivetrains(drivetrains, max_feet=None):
     axes[1].set_ylabel('Velocity (ft/s)')
 
     plt.legend(labels)
+    # plt.legend(labels, loc="upper left", bbox_to_anchor=(1,1))
+    # plt.tight_layout()
 
     plt.show()
 
@@ -123,14 +159,18 @@ class Drivetrain:
         self._update_slip_force()
 
     @property
-    def description(self):
-        base = "{0:.1f} ft/s, {1:.0f} lbs".format(
+    def latex_description(self):
+        des = r'{0:.1f} ft/s, {1:.0f} lbs'.format(
                 self.frictionless_max_velocity * 3.28084, self.mass * 2.2)
 
-        if self.current_limit is not None:
-            return "{0}, {1} A limit".format(base, self.current_limit)
+        if self.current_limit:
+            des = r'{0}, {1} A limit'.format(des, self.current_limit)
 
-        return base
+        if self.resistance_bat:
+            des = r'{0}, ${1}={2} \Omega$'.format(
+                    des, 'R_{bat}', self.resistance_bat)
+
+        return des
 
     @property
     def frictionless_max_velocity(self):
@@ -194,11 +234,11 @@ class Drivetrain:
 
         # TODO: include motor impedance effects
         motor_current = self._motor_current(omega_motor, 0)
-        if self.current_limit is not None:
+        if self.current_limit:
             motor_current = min((motor_current, self.current_limit))
 
-        force = self._motor_current(omega_motor, 0) * \
-            self.motor.torque_const * self.gear_ratio / self.wheel_radius
+        force = motor_current * self.motor.torque_const * self.gear_ratio \
+            / self.wheel_radius
         if self._slip_force is not None:
             force = min((force, self._slip_force))
 
