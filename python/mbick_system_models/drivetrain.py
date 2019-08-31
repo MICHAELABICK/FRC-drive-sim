@@ -210,6 +210,7 @@ class Drivetrain:
                 fun=self.forward_ode,
                 t_span=(0.0, sim_time),
                 y0=np.array([init_velocity, 0.0]),
+                vectorized=True,
                 max_step=sim_time / minimum_steps_num
             )
 
@@ -224,11 +225,16 @@ class Drivetrain:
         Defines the system of ODEs for a forward moving drivetrain
 
         :param t: A scalar of the current time step
-        :param y: A vector of the system variables
-        :returns: A vector of the time derivatives of the system variables
+        :param y: Shape (n,) or (n,k) of the system variables
+        :returns: Time derivatives of the system variables
+            with the same shape as y
         """
 
-        (velocity, position) = y
+        shape = y.shape
+        y = np.reshape(y, (-1, 1))  # make y 2D if it is not already
+
+        velocity = y[0, :]
+        # position = y[1, :]
 
         omega_motor = velocity / self.wheel_radius * self.gear_ratio  # rad/s
 
@@ -242,7 +248,7 @@ class Drivetrain:
         if self._slip_force is not None:
             force = min((force, self._slip_force))
 
-        return (force / self.mass, velocity)
+        return np.reshape(np.vstack((force / self.mass, velocity)), shape)
 
     def _motor_current(self, omega_motor, motor_current_dot):
         return (self.voltage_bat
