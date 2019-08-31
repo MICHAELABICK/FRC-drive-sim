@@ -69,6 +69,8 @@ def plot_current_limited_drivetrain(current_limit):
             ],
             max_feet=MAX_DISTANCE
         )
+
+
 def plot_comparaison(chosenComparaison):
     plot_drivetrains(
             [
@@ -83,7 +85,6 @@ def plot_comparaison(chosenComparaison):
             ],
             max_feet=MAX_DISTANCE
         )
-    pass
 
 
 def plot_drivetrains(drivetrains, max_feet=None):
@@ -325,7 +326,7 @@ class MotorFactory:
             'stall_current': 89,   # amps
             'impedance': 0  
         }
-        }
+    }
 
     @classmethod
     def create(cls, motor_name):
@@ -386,6 +387,8 @@ class DefaultDrivetrainFactory:
                 wheel_friction_coef=wheel_friction_coef,
                 current_limit=current_limit
             )
+
+
 class DrivetrainToComapre:
     num_motors = 4
     wheel_diameter = 4  # in
