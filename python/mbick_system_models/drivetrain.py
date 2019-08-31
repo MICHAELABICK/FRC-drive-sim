@@ -6,14 +6,14 @@ from scipy.integrate import solve_ivp
 import numpy as np
 import matplotlib.pyplot as plt
 
-MAX_DISTANCE = 30  # ft
+MAX_DISTANCE = 50  # ft
 
 
 def main():
-    # plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
+    plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
     # plot_drivetrain_combinations(current_limit=400)
     # plot_heavy_drivetrains()
-    plot_current_limited_drivetrain(200)
+    # plot_current_limited_drivetrain(200)
 
 
 def plot_heavy_drivetrains():
@@ -311,7 +311,7 @@ class DefaultDrivetrainFactory:
     wheel_friction_coef = 1.1
 
     fast_gear = 10
-    slow_gear = 13
+    slow_gear = 13.5
     heavy_mass = 130  # lbs
     light_mass = 80  # lbs
 
