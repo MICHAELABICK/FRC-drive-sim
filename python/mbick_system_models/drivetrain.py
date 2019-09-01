@@ -14,7 +14,7 @@ def main():
     # plot_drivetrain_combinations(current_limit=400)
     # plot_heavy_drivetrains()
     # plot_current_limited_drivetrain(200)
-    plot_comparison('775pro')
+    # plot_comparison('775pro')
 
 
 def plot_heavy_drivetrains():
