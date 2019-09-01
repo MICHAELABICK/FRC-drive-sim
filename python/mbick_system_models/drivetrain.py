@@ -10,11 +10,11 @@ MAX_DISTANCE = 30  # ft
 
 
 def main():
-    # plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
+    plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
     # plot_drivetrain_combinations(current_limit=400)
     # plot_heavy_drivetrains()
     # plot_current_limited_drivetrain(200)
-    plot_comparison('775pro')
+    # plot_comparison('775pro')
 
 
 def plot_heavy_drivetrains():
@@ -292,7 +292,7 @@ Simulation = namedtuple('Simulation', 'time, position, velocity')
 
 class MotorFactory:
     motor_list = {
-        'cim': {
+        'CIM': {
             'voltage': 12,  # volts
             'free_speed': 5330,  # RPM
             'free_current': 2.7,  # amps
@@ -300,7 +300,7 @@ class MotorFactory:
             'stall_current': 131,  # amps
             'impedance': 0
             },
-        'neos': {           # 10.65 fast_gear, 13.84 slow_gear
+        'neo': {           # 10.65 fast_gear, 13.84 slow_gear
             'voltage': 12,  # volts
             'free_speed': 5676,  # RPM
             'free_current': 1.8,  # amps
@@ -343,7 +343,7 @@ class MotorFactory:
 
 
 class DefaultDrivetrainFactory:
-    cim = MotorFactory.create('cim')
+    cim = MotorFactory.create('CIM')
     num_motors = 4
     wheel_diameter = 4  # in
     voltage_bat = 12
