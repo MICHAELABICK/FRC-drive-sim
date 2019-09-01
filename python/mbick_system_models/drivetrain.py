@@ -14,6 +14,7 @@ def main():
     # plot_drivetrain_combinations(current_limit=400)
     # plot_heavy_drivetrains()
     # plot_current_limited_drivetrain(200)
+    # plot_comparison('775pro')
 
 
 def plot_heavy_drivetrains():
@@ -65,6 +66,20 @@ def plot_current_limited_drivetrain(current_limit):
                     heavy=True, fast=False, current_limit=False),
                 DefaultDrivetrainFactory.create(
                     heavy=True, fast=False, current_limit=current_limit),
+            ],
+            max_feet=MAX_DISTANCE
+        )
+
+
+def plot_comparison(comparison):
+    plot_drivetrains(
+            [
+                DefaultDrivetrainFactory.create(heavy=True, fast=True),
+                DrivetrainToCompare.create(
+                    heavy=True, fast=True, comparison=comparison),
+                DefaultDrivetrainFactory.create(heavy=True, fast=False),
+                DrivetrainToCompare.create(
+                    heavy=True, fast=False, comparison=comparison),
             ],
             max_feet=MAX_DISTANCE
         )
@@ -306,15 +321,39 @@ Simulation = namedtuple('Simulation', 'time, position, velocity')
 
 class MotorFactory:
     motor_list = {
-            'cim': {
-                'voltage': 12,  # volts
-                'free_speed': 5330,  # RPM
-                'free_current': 2.7,  # amps
-                'stall_torque': 2.41,  # Nm
-                'stall_current': 131,  # amps
-                'impedance': 0
-            }
+        'cim': {
+            'voltage': 12,  # volts
+            'free_speed': 5330,  # RPM
+            'free_current': 2.7,  # amps
+            'stall_torque': 2.41,  # Nm
+            'stall_current': 131,  # amps
+            'impedance': 0
+            },
+        'neos': {           # 10.65 fast_gear, 13.84 slow_gear
+            'voltage': 12,  # volts
+            'free_speed': 5676,  # RPM
+            'free_current': 1.8,  # amps
+            'stall_torque': 2.6,  # Nm
+            'stall_current': 105,   # amps
+            'impedance': 0
+        },
+        '775pro': {          # 35.08 fast_gear, 45.61 slow_gear
+            'voltage': 12,  # volts
+            'free_speed': 18700,  # RPM
+            'free_current': 0.7,  # amps
+            'stall_torque': 0.71,  # Nm
+            'stall_current': 134,   # amps
+            'impedance': 0
+        },
+        'miniCIM': {        # 10.96 fast_gear, 14.24 slow_gear
+            'voltage': 12,  # volts
+            'free_speed': 5840,  # RPM
+            'free_current': 3,  # amps
+            'stall_torque': 1.4,  # Nm
+            'stall_current': 89,   # amps
+            'impedance': 0
         }
+    }
 
     @classmethod
     def create(cls, motor_name):
@@ -347,6 +386,57 @@ class DefaultDrivetrainFactory:
     @classmethod
     def create(cls, heavy, fast, resistance_bat=None, current_limit=None):
         motor = cls.cim
+        num_motors = cls.num_motors
+        wheel_diameter = cls.wheel_diameter
+        voltage_bat = cls.voltage_bat
+        wheel_friction_coef = cls.wheel_friction_coef
+
+        if heavy:
+            mass = cls.heavy_mass
+        else:
+            mass = cls.light_mass
+
+        if fast:
+            gear_ratio = cls.fast_gear
+        else:
+            gear_ratio = cls.slow_gear
+
+        mass_kg = mass / 2.2
+        wheel_diameter_meters = wheel_diameter * 2.54 / 100
+
+        return Drivetrain(
+                mass_kg,
+                motor.combine(num_motors),
+                gear_ratio,
+                wheel_diameter_meters,
+                voltage_bat,
+                resistance_bat=resistance_bat,
+                wheel_friction_coef=wheel_friction_coef,
+                current_limit=current_limit
+            )
+
+
+class DrivetrainToCompare:
+    num_motors = 4
+    wheel_diameter = 4  # in
+    voltage_bat = 12
+    wheel_friction_coef = 1.1
+
+    fast_gear = 35.08
+    slow_gear = 45.61
+    heavy_mass = 130  # lbs
+    light_mass = 80  # lbs
+
+    @classmethod
+    def create(
+        cls,
+        heavy,
+        fast,
+        comparison,
+        resistance_bat=None,
+        current_limit=None
+    ):
+        motor = MotorFactory.create(comparison)
         num_motors = cls.num_motors
         wheel_diameter = cls.wheel_diameter
         voltage_bat = cls.voltage_bat
