@@ -13,8 +13,8 @@ def main():
     # plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
     # plot_drivetrain_combinations(current_limit=400)
     # plot_heavy_drivetrains()
-    plot_current_limited_drivetrain(200)
-    # plot_comparaison('775pro')
+    # plot_current_limited_drivetrain(200)
+    plot_comparison('775pro')
 
 
 def plot_heavy_drivetrains():
@@ -71,17 +71,15 @@ def plot_current_limited_drivetrain(current_limit):
         )
 
 
-def plot_comparaison(chosenComparaison):
+def plot_comparison(comparison):
     plot_drivetrains(
             [
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=True,),
-                DrivetrainToComapre.create(
-                    heavy=True, fast=True, chosenComparaison=chosenComparaison),
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=False,),
-                DrivetrainToComapre.create(
-                    heavy=True, fast=False, chosenComparaison=chosenComparaison),
+                DefaultDrivetrainFactory.create(heavy=True, fast=True),
+                DrivetrainToCompare.create(
+                    heavy=True, fast=True, comparison=comparison),
+                DefaultDrivetrainFactory.create(heavy=True, fast=False),
+                DrivetrainToCompare.create(
+                    heavy=True, fast=False, comparison=comparison),
             ],
             max_feet=MAX_DISTANCE
         )
@@ -324,7 +322,7 @@ class MotorFactory:
             'free_current': 3,  # amps
             'stall_torque': 1.4,  # Nm
             'stall_current': 89,   # amps
-            'impedance': 0  
+            'impedance': 0
         }
     }
 
@@ -389,7 +387,7 @@ class DefaultDrivetrainFactory:
             )
 
 
-class DrivetrainToComapre:
+class DrivetrainToCompare:
     num_motors = 4
     wheel_diameter = 4  # in
     voltage_bat = 12
@@ -401,8 +399,15 @@ class DrivetrainToComapre:
     light_mass = 80  # lbs
 
     @classmethod
-    def create(cls, heavy, fast, chosenComparaison, resistance_bat=None, current_limit=None):
-        motor = MotorFactory.create(chosenComparaison)
+    def create(
+        cls,
+        heavy,
+        fast,
+        comparison,
+        resistance_bat=None,
+        current_limit=None
+    ):
+        motor = MotorFactory.create(comparison)
         num_motors = cls.num_motors
         wheel_diameter = cls.wheel_diameter
         voltage_bat = cls.voltage_bat
