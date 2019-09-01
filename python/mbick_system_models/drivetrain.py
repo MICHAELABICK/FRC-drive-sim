@@ -230,6 +230,22 @@ class Drivetrain:
             with the same shape as y
         """
 
+        derivative = self._calculate_ode(t, y)
+
+        return derivative
+
+    def _calculate_ode(self, t, y):
+        """
+        Defines the system of ODEs for a forward moving drivetrain
+
+        :param t: a scalar of the current time step
+        :param y: sarray with shape (n,) or (n,k) of the system variables
+        :returns: tuple containing:
+            derivative: time derivatives of the system variables
+                with the same shape as y
+            inner_state: dict containing inner states of the model
+        """
+
         shape = y.shape
         y = np.reshape(y, (-1, 1))  # make y 2D if it is not already
 
@@ -248,7 +264,14 @@ class Drivetrain:
         if self._slip_force is not None:
             force = min((force, self._slip_force))
 
-        return np.reshape(np.vstack((force / self.mass, velocity)), shape)
+        derivative = np.reshape(np.vstack(
+            (force / self.mass, velocity)), shape)
+        inner_state = {
+                'motor_current': motor_current,
+                'force': force,
+            }
+
+        return (derivative, inner_state)
 
     def _motor_current(self, omega_motor, motor_current_dot):
         return (self.voltage_bat
