@@ -137,6 +137,7 @@ class Drivetrain:
         gear_ratio,
         wheel_diameter,
         voltage_bat,
+        name=None,
         resistance_bat=None,
         wheel_friction_coef=None,
         current_limit=None
@@ -177,6 +178,9 @@ class Drivetrain:
     def latex_description(self):
         des = r'{0:.1f} ft/s, {1:.0f} lbs'.format(
                 self.frictionless_max_velocity * 3.28084, self.mass * 2.2)
+
+        if self.motor.name is not None:
+            des = r'{0}, {1}'.format(self.motor.name, des)
 
         if self.current_limit:
             des = r'{0}, {1} A limit'.format(des, self.current_limit)
@@ -267,14 +271,29 @@ class Drivetrain:
 
 
 class Motor:
-    def __init__(self, torque_const, back_emf_const, resistance, impedance):
+    def __init__(
+        self,
+        torque_const,
+        back_emf_const,
+        resistance,
+        impedance,
+        name=None
+    ):
         self.torque_const = torque_const
         self.back_emf_const = back_emf_const
         self.resistance = resistance
         self.impedance = impedance
+        self.name = name
 
     def combine(self, num_motors):
         motor = self
+
+        if motor.name is not None:
+            name = "{0}x {1}".format(num_motors, motor.name)
+            # unicode times code as an alternative
+            # name = u"{0}\u00D7 {1}".format(num_motors, motor.name)
+        else:
+            name = None
 
         # only have to adjust resistance and impedance,
         # based on the equivalent values of those components
@@ -283,7 +302,8 @@ class Motor:
                 motor.torque_const,
                 motor.back_emf_const,
                 motor.resistance / num_motors,
-                motor.impedance / num_motors
+                motor.impedance / num_motors,
+                name=name
             )
 
 
@@ -339,7 +359,12 @@ class MotorFactory:
             / free_speed
 
         return Motor(
-                torque_const, back_emf_const, resistance, specs['impedance'])
+                torque_const,
+                back_emf_const,
+                resistance,
+                specs['impedance'],
+                name=motor_name
+            )
 
 
 class DefaultDrivetrainFactory:
