@@ -10,65 +10,48 @@ MAX_DISTANCE = 50  # ft
 
 
 def main():
-    plot_drivetrain_combinations(resistance_bat=0.025, current_limit=400)
-    # plot_drivetrain_combinations(current_limit=400)
-    # plot_heavy_drivetrains()
-    # plot_current_limited_drivetrain(200)
+    dcf = DrivetrainComparisonFactory(voltage_bat=12)
+
+    plot_drivetrains(
+            dcf.create(
+                mass=(130, 80),
+                motor='CIM',
+                num_motors=4,
+                gear_ratio=(10, 13),
+                resistance_bat=0.025,
+                current_limit=400
+            ),
+            max_feet=MAX_DISTANCE
+        )
+
+    # # plot without current limit
+    # plot_drivetrains(
+    #         dcf.create(
+    #             mass=(130, 80),
+    #             motor='CIM',
+    #             num_motors=4,
+    #             gear_ratio=(10, 13),
+    #             current_limit=400
+    #         ),
+    #         max_feet=MAX_DISTANCE
+    #     )
+
+    # # plot current comparison
+    # plot_drivetrains(
+    #         dcf.create(
+    #             mass=130,
+    #             motor='CIM',
+    #             num_motors=4,
+    #             gear_ratio=(10, 13),
+    #             resistance_bat=0.025,
+    #             current_limit=(200, None)
+    #         ),
+    #         max_feet=MAX_DISTANCE
+    #     )
+
     # plot_comparison('775pro')
 
-
-def plot_heavy_drivetrains():
-    plot_drivetrains(
-            [
-                DefaultDrivetrainFactory.create(heavy=True, fast=True),
-                DefaultDrivetrainFactory.create(heavy=True, fast=False),
-            ],
-            max_feet=MAX_DISTANCE
-        )
-
-
-def plot_drivetrain_combinations(resistance_bat=None, current_limit=None):
-    plot_drivetrains(
-            [
-                DefaultDrivetrainFactory.create(
-                    heavy=True,
-                    fast=True,
-                    resistance_bat=resistance_bat,
-                    current_limit=current_limit),
-                DefaultDrivetrainFactory.create(
-                    heavy=False,
-                    fast=True,
-                    resistance_bat=resistance_bat,
-                    current_limit=current_limit),
-                DefaultDrivetrainFactory.create(
-                    heavy=True,
-                    fast=False,
-                    resistance_bat=resistance_bat,
-                    current_limit=current_limit),
-                DefaultDrivetrainFactory.create(
-                    heavy=False,
-                    fast=False,
-                    resistance_bat=resistance_bat,
-                    current_limit=current_limit),
-            ],
-            max_feet=MAX_DISTANCE
-        )
-
-
-def plot_current_limited_drivetrain(current_limit):
-    plot_drivetrains(
-            [
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=True, current_limit=False),
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=True, current_limit=current_limit),
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=False, current_limit=False),
-                DefaultDrivetrainFactory.create(
-                    heavy=True, fast=False, current_limit=current_limit),
-            ],
-            max_feet=MAX_DISTANCE
-        )
+    plt.show()
 
 
 def plot_comparison(comparison):
@@ -104,8 +87,6 @@ def plot_drivetrains(drivetrains, max_feet=None):
     # plt.legend(labels, loc="upper left", bbox_to_anchor=(1,1))
     # plt.tight_layout()
 
-    plt.show()
-
 
 def plot_simulation(sim, axes=None, max_feet=None):
     if axes is None:
@@ -137,6 +118,7 @@ class Drivetrain:
         gear_ratio,
         wheel_diameter,
         voltage_bat,
+        name=None,
         resistance_bat=None,
         wheel_friction_coef=None,
         current_limit=None
@@ -177,6 +159,9 @@ class Drivetrain:
     def latex_description(self):
         des = r'{0:.1f} ft/s, {1:.0f} lbs'.format(
                 self.frictionless_max_velocity * 3.28084, self.mass * 2.2)
+
+        if self.motor.name is not None:
+            des = r'{0}, {1}'.format(self.motor.name, des)
 
         if self.current_limit:
             des = r'{0}, {1} A limit'.format(des, self.current_limit)
@@ -273,14 +258,29 @@ class Drivetrain:
 
 
 class Motor:
-    def __init__(self, torque_const, back_emf_const, resistance, impedance):
+    def __init__(
+        self,
+        torque_const,
+        back_emf_const,
+        resistance,
+        impedance,
+        name=None
+    ):
         self.torque_const = torque_const
         self.back_emf_const = back_emf_const
         self.resistance = resistance
         self.impedance = impedance
+        self.name = name
 
     def combine(self, num_motors):
         motor = self
+
+        if motor.name is not None:
+            name = "{0}x {1}".format(num_motors, motor.name)
+            # unicode times code as an alternative
+            # name = u"{0}\u00D7 {1}".format(num_motors, motor.name)
+        else:
+            name = None
 
         # only have to adjust resistance and impedance,
         # based on the equivalent values of those components
@@ -289,7 +289,8 @@ class Motor:
                 motor.torque_const,
                 motor.back_emf_const,
                 motor.resistance / num_motors,
-                motor.impedance / num_motors
+                motor.impedance / num_motors,
+                name=name
             )
 
 
@@ -298,7 +299,7 @@ Simulation = namedtuple('Simulation', 'time, position, velocity')
 
 class MotorFactory:
     motor_list = {
-        'cim': {
+        'CIM': {
             'voltage': 12,  # volts
             'free_speed': 5330,  # RPM
             'free_current': 2.7,  # amps
@@ -306,7 +307,7 @@ class MotorFactory:
             'stall_current': 131,  # amps
             'impedance': 0
             },
-        'neos': {           # 10.65 fast_gear, 13.84 slow_gear
+        'neo': {           # 10.65 fast_gear, 13.84 slow_gear
             'voltage': 12,  # volts
             'free_speed': 5676,  # RPM
             'free_current': 1.8,  # amps
@@ -345,52 +346,113 @@ class MotorFactory:
             / free_speed
 
         return Motor(
-                torque_const, back_emf_const, resistance, specs['impedance'])
-
-
-class DefaultDrivetrainFactory:
-    cim = MotorFactory.create('cim')
-    num_motors = 4
-    wheel_diameter = 4  # in
-    voltage_bat = 12
-    wheel_friction_coef = 1.1
-
-    fast_gear = 10
-    slow_gear = 13.5
-    heavy_mass = 130  # lbs
-    light_mass = 80  # lbs
-
-    @classmethod
-    def create(cls, heavy, fast, resistance_bat=None, current_limit=None):
-        motor = cls.cim
-        num_motors = cls.num_motors
-        wheel_diameter = cls.wheel_diameter
-        voltage_bat = cls.voltage_bat
-        wheel_friction_coef = cls.wheel_friction_coef
-
-        if heavy:
-            mass = cls.heavy_mass
-        else:
-            mass = cls.light_mass
-
-        if fast:
-            gear_ratio = cls.fast_gear
-        else:
-            gear_ratio = cls.slow_gear
-
-        mass_kg = mass / 2.2
-        wheel_diameter_meters = wheel_diameter * 2.54 / 100
-
-        return Drivetrain(
-                mass_kg,
-                motor.combine(num_motors),
-                gear_ratio,
-                wheel_diameter_meters,
-                voltage_bat,
-                resistance_bat=resistance_bat,
-                wheel_friction_coef=wheel_friction_coef,
-                current_limit=current_limit
+                torque_const,
+                back_emf_const,
+                resistance,
+                specs['impedance'],
+                name=motor_name
             )
+
+
+class DrivetrainComparisonFactory:
+    def __init__(
+        self,
+        mass=None,
+        motor=None,
+        num_motors=None,
+        gear_ratio=None,
+        wheel_diameter=None,
+        voltage_bat=None,
+        resistance_bat=None,
+        wheel_friction_coef=None,
+        current_limit=None
+    ):
+        if mass is None:
+            mass = 130
+        if motor is None:
+            motor = MotorFactory.create("CIM")
+        if num_motors is None:
+            num_motors = 1
+        if wheel_diameter is None:
+            wheel_diameter = 4  # in
+        if voltage_bat is None:
+            voltage_bat = 12
+
+        self.mass = mass
+        self.motor = motor
+        self.num_motors = num_motors
+        self.wheel_diameter = wheel_diameter
+        self.voltage_bat = voltage_bat
+        self.resistance_bat = resistance_bat
+        self.wheel_friction_coef = wheel_friction_coef
+        self.current_limit = current_limit
+
+    def create(
+        self,
+        mass=None,
+        motor=None,
+        num_motors=None,
+        gear_ratio=None,
+        wheel_diameter=None,
+        voltage_bat=None,
+        resistance_bat=None,
+        wheel_friction_coef=None,
+        current_limit=None
+    ):
+        from collections.abc import Collection
+        from itertools import product
+
+        function_args = {
+                'mass': mass,
+                'motor': motor,
+                'num_motors': num_motors,
+                'gear_ratio': gear_ratio,
+                'wheel_diameter': wheel_diameter,
+                'voltage_bat': voltage_bat,
+                'resistance_bat': resistance_bat,
+                'wheel_friction_coef': wheel_friction_coef,
+                'current_limit': current_limit,
+            }
+        # make any argument that is not a collection into a collection
+        for key, value in function_args.items():
+            if (
+                not isinstance(value, Collection)
+                or isinstance(value, str)
+            ):
+                function_args[key] = (value,)
+
+        # get a list of drivetrains for each combo
+        drivetrains = []
+        for combo in product(*function_args.values()):
+            # if None, set parameters to the default value
+            # of the factory instance
+            params = {}
+            for index, key in enumerate(function_args.keys()):
+                combo_value = combo[index]
+                if combo_value is None:
+                    params[key] = getattr(self, key)
+                else:
+                    params[key] = combo_value
+
+            motor = params['motor']
+            if isinstance(motor, str):
+                motor = MotorFactory.create(motor)
+
+            mass_kg = params['mass'] / 2.2
+            wheel_diameter_meters = params['wheel_diameter'] * 2.54 / 100
+
+            drivetrains.append(Drivetrain(
+                    mass_kg,
+                    motor.combine(params['num_motors']),
+                    params['gear_ratio'],
+                    wheel_diameter_meters,
+                    params['voltage_bat'],
+                    resistance_bat=params['resistance_bat'],
+                    wheel_friction_coef=params['wheel_friction_coef'],
+                    current_limit=params['current_limit']
+                ))
+
+        return drivetrains
 
 
 class DrivetrainToCompare:
